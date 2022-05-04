@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: weightracker-app
+spec:
+  selector:
+    matchLabels:
+      app: weight-app
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        app: weight-app
+    spec:
+      containers:
+      - name: bootcamp-app
+        image: shirf/bootcamp_app:v2
+        envFrom:
+          - secretRef:
+              name: weight-app-secret
+        resources:
+          limits:
+            memory: "128Mi"
+            cpu: "500m"
+        ports:
+        - containerPort: 80
