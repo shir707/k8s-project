@@ -23,4 +23,4 @@ override.tf.json
 .terraformrc
 terraform.rc
 
-## k8s gitignore
+.terraform.lock.hcl
