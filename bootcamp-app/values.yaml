@@ -1,6 +1,6 @@
 deployment:
   name: "weight-app"
-  image: "shirf/bootcamp_app"
+  image: "shiracr.azurecr.io/kube"
   tag: "v2"
 
 postgres:
