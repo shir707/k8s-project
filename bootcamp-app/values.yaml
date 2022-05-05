@@ -1,0 +1,13 @@
+deployment:
+  name: "weight-app"
+  image: "shirf/bootcamp_app"
+  tag: "v2"
+
+postgres:
+  name: "postgres"
+  image: "postgres"
+  tag: "10.4"
+  POSTGRES_DB: cG9zdGdyZXM=
+  POSTGRES_USER: cG9zdGdyZXM=
+  POSTGRES_PASSWORD: cEBzc3cwcmQ0Mg==
+ 
