@@ -36,3 +36,5 @@ The application for this project is NodeJS Weight Tracker - [repo](https://githu
 ## Expected Result
 * An AKS cluster with the NodeWeightTracker is deployed following the requirements listed above.
 * The application lifecycle is automated with a CI/CD process
+* In this project, I used terraform in order to create aks and acr
+* In this project, I user helm chart. 
