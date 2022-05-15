@@ -1,0 +1,115 @@
+# Deploy to Azure Kubernetes Service
+# Build and push image to Azure Container Registry; Deploy to Azure Kubernetes Service
+# https://docs.microsoft.com/azure/devops/pipelines/languages/docker
+
+trigger:
+- master
+- feature
+
+resources:
+- repo: self
+
+variables:
+
+  # Container registry service connection established during pipeline creation
+  dockerRegistryServiceConnection: '200e82b7-6a5d-43ef-9383-4f9c7b9b4723'
+  imageRepository: 'kube'
+  containerRegistry: 'shiracr.azurecr.io'
+  dockerfilePath: '$(Build.SourcesDirectory)/docker/Dockerfile'
+  tag: '$(Build.BuildId)'
+  imagePullSecret: 'weight-app-secret'
+
+  # Agent VM image name
+  vmImageName: 'ubuntu-latest'
+
+
+stages:
+- stage: Build
+  displayName: Build stage
+  jobs:
+  - job: Build
+    displayName: Build
+    pool:
+      vmImage: $(vmImageName)
+    steps:
+    
+    - task: Docker@2
+      inputs:
+        containerRegistry: $(dockerRegistryServiceConnection)
+        repository: $(imageRepository)
+        command: 'build'
+        Dockerfile: $(dockerfilePath)
+        buildContext: '**'
+        tags: $(tag)
+    
+    - task: Docker@2
+      inputs:
+        containerRegistry: $(dockerRegistryServiceConnection)
+        repository: $(imageRepository)
+        command: 'push'
+        tags: $(tag)
+      condition: and(succeeded(), eq(variables['build.sourceBranch'], 'refs/heads/master'))
+    
+    - task: HelmInstaller@0
+      inputs:
+        helmVersion: '2.14.1'
+        installKubectl: true
+    
+    - task: HelmDeploy@0
+      inputs:
+        command: 'package'
+        chartPath: 'bootcamp-app'
+        chartVersion: '$(Build.BuildId)'
+    
+    - task: PublishPipelineArtifact@1
+      inputs:
+        targetPath: '$(Build.ArtifactStagingDirectory)'
+        artifact: 'bootcampApp'
+        publishLocation: 'pipeline'
+
+- stage: Deploy
+  condition: and(succeeded(), eq(variables['build.sourceBranch'], 'refs/heads/master'))
+  variables:
+  - group: kubeGroup
+  displayName: Deploy kubernetes
+  dependsOn: Build
+
+  jobs:
+  - deployment: Deploy
+    displayName: Deploy
+    pool:
+      vmImage: $(vmImageName)
+    environment: 'kubernetesEnv'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+         
+           - task: KubernetesManifest@0
+             inputs:
+               action: 'createSecret'
+               kubernetesServiceConnection: 'aks-cluster-default'
+               namespace: 'default'
+               secretType: 'generic'
+               secretName: 'weight-app-secret'
+               secretArguments: '--from-literal=COOKIE_ENCRYPT_PWD=$(COOKIE_ENCRYPT_PWD) --from-literal=HOST=$(HOST) --from-literal=PORT=$(PORT) --from-literal=NODE_ENV=$(NODE_ENV) --from-literal=HOST_URL=$(HOST_URL) --from-literal=OKTA_CLIENT_ID=$(OKTA_CLIENT_ID) --from-literal=OKTA_CLIENT_SECRET=$(OKTA_CLIENT_SECRET) --from-literal=OKTA_ORG_URL=$(OKTA_ORG_URL)  --from-literal=PGHOST=$(PGHOST) --from-literal=PGUSERNAME=$(PGUSERNAME) --from-literal=PGDATABASE=$(PGDATABASE) --from-literal=PGPASSWORD=$(PGPASSWORD)  --from-literal=PGPORT=$(PGPORT)'
+            
+           - task: HelmInstaller@0
+             inputs:
+               helmVersion: '2.14.1'
+               installKubectl: true
+            
+           - task: HelmDeploy@0
+             inputs:
+               connectionType: 'Azure Resource Manager'
+               azureSubscription: 'Azure Pass - Sponsorship(8b63597b-8ec6-4bce-8db2-66245beb07dd)'
+               azureResourceGroup: 'aks_rg'
+               kubernetesCluster: 'aks-cluster'
+               namespace: 'default'
+               command: 'upgrade'
+               chartType: 'FilePath'
+               chartPath: '$(pipeline.workspace)/bootcampApp/bootcamp-app-$(Build.BuildId).tgz'
+               chartVersion: '$(Build.BuildId)'
+               releaseName: 'bootcamp-app'
+               arguments: '--atomic --set deployment.tag=$(Build.BuildId) --set postgres.POSTGRES_PASSWORD=$(POSTGRES_PASSWORD)'
+
